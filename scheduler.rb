@@ -1,105 +1,71 @@
-# /root/mastodon_bots/professor_bot/scheduler.rb
+# scheduler.rb
+# encoding: UTF-8
+# 자동툿 시트(A=ON/OFF체크박스 / B=시간HH:MM / C=내용) 기반으로 스케줄 동적 로딩
+# 매 1분마다 현재 시각과 시트 시간을 비교해 툿 발송
+
 require 'rufus-scheduler'
 require 'dotenv/load'
+require 'google/apis/sheets_v4'
+require 'googleauth'
 
-require_relative './mastodon_client'
-require_relative './sheet_manager'
+require_relative 'mastodon_client'
+require_relative 'sheet_manager'
 
-require_relative './cron_tasks/morning_attendance_push'
-require_relative './cron_tasks/curfew_alert'
-require_relative './cron_tasks/curfew_release'
+# ──────────────────────────────────────────────
+# 초기화
+# ──────────────────────────────────────────────
+BASE_URL  = ENV['MASTODON_BASE_URL']
+TOKEN     = ENV['MASTODON_TOKEN']
+SHEET_ID  = ENV['GOOGLE_SHEET_ID']
+CRED_PATH = ENV['GOOGLE_APPLICATION_CREDENTIALS'] || ENV['GOOGLE_CREDENTIALS_PATH']
 
-# ----------------------------------------------
-# 마스토돈 + 시트 클라이언트 초기화
-# ----------------------------------------------
-begin
-  mastodon = MastodonClient.new(
-    base_url: ENV['MASTODON_BASE_URL'],
-    token: ENV['MASTODON_TOKEN']
-  )
-  sheet_manager = SheetManager.new(ENV['GOOGLE_SHEET_ID'])
-  puts "[교수봇 스케줄러] 클라이언트 초기화 완료"
-rescue => e
-  puts "[에러] 클라이언트 초기화 실패: #{e.message}"
-  exit 1
-end
+service = Google::Apis::SheetsV4::SheetsService.new
+service.client_options.application_name = 'ProfessorBot'
+service.authorization = Google::Auth::ServiceAccountCredentials.make_creds(
+  json_key_io: File.open(CRED_PATH),
+  scope: ['https://www.googleapis.com/auth/spreadsheets']
+)
 
-# ----------------------------------------------
-# 스케줄러 시작
-# ----------------------------------------------
+sheet_manager = SheetManager.new(service, SHEET_ID)
+mastodon      = MastodonClient.new(base_url: BASE_URL, token: TOKEN)
+
+puts "[스케줄러] 시작 #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+
+# ──────────────────────────────────────────────
+# 이미 발송한 시간 기록 (당일 중복 방지)
+# ──────────────────────────────────────────────
+sent_today = {}
+last_reset_date = Time.now.strftime('%Y-%m-%d')
+
 scheduler = Rufus::Scheduler.new
 
-# ✅ 시트의 ON/OFF 상태 읽기
-def get_professor_flags(sheet_manager)
-  values = sheet_manager.read('교수!A2:C2')
-  return [false, false, false] if values.nil? || values.empty?
+# 매 1분마다 시트 확인 후 해당 시간 툿 발송
+scheduler.every '1m' do
+  now  = Time.now
+  date = now.strftime('%Y-%m-%d')
+  hhmm = now.strftime('%H:%M')
 
-  flags = values.first.map do |val|
-    val.to_s.strip.casecmp('TRUE').zero? || val == '✅'
+  # 자정 지나면 발송 기록 초기화
+  if date != last_reset_date
+    sent_today.clear
+    last_reset_date = date
+    puts "[스케줄러] 날짜 변경 - 발송 기록 초기화"
   end
 
-  {
-    morning: flags[0],   # 아침출석자동툿
-    curfew_alert: flags[1],  # 통금알람
-    curfew_release: flags[2] # 통금해제알람
-  }
-rescue => e
-  puts "[에러] 시트 상태 읽기 실패: #{e.message}"
-  { morning: false, curfew_alert: false, curfew_release: false }
-end
+  begin
+    toots = sheet_manager.load_auto_toots
+    toots.each do |toot|
+      next unless toot[:time] == hhmm
+      next if sent_today["#{date}_#{hhmm}_#{toot[:content][0..10]}"]
 
-# ✅ 공통 안전 래퍼
-def safe_task(name)
-  yield
-rescue => e
-  puts "[에러][#{name}] #{e.class}: #{e.message}"
-end
-
-# ----------------------------------------------
-# 📌 매일 아침 8:00 - 출석 시작 안내 (질문 형식)
-# ----------------------------------------------
-scheduler.cron '0 8 * * *' do
-  flags = get_professor_flags(sheet_manager)
-  if flags[:morning]
-    safe_task('morning_attendance_push') do
-      run_morning_attendance_push(sheet_manager, mastodon)
-      puts "[실행됨] 아침출석자동툿"
+      mastodon.post_status(toot[:content], visibility: 'public')
+      sent_today["#{date}_#{hhmm}_#{toot[:content][0..10]}"] = true
+      puts "[자동툿] #{hhmm} 발송: #{toot[:content][0..30]}..."
     end
-  else
-    puts "[건너뜀] 아침출석자동툿 비활성화됨"
+  rescue => e
+    puts "[스케줄러 오류] #{e.message}"
   end
 end
 
-# ----------------------------------------------
-# 📌 매일 새벽 2:00 - 통금 알림
-# ----------------------------------------------
-scheduler.cron '0 2 * * *' do
-  flags = get_professor_flags(sheet_manager)
-  if flags[:curfew_alert]
-    safe_task('curfew_alert') do
-      run_curfew_alert(sheet_manager, mastodon)
-      puts "[실행됨] 통금알람"
-    end
-  else
-    puts "[건너뜀] 통금알람 비활성화됨"
-  end
-end
-
-# ----------------------------------------------
-# 📌 매일 아침 6:00 - 통금 해제 안내
-# ----------------------------------------------
-scheduler.cron '0 6 * * *' do
-  flags = get_professor_flags(sheet_manager)
-  if flags[:curfew_release]
-    safe_task('curfew_release') do
-      run_curfew_release(sheet_manager, mastodon)
-      puts "[실행됨] 통금해제알람"
-    end
-  else
-    puts "[건너뜀] 통금해제알람 비활성화됨"
-  end
-end
-
-puts "[교수봇 스케줄러] 실행 중... Ctrl+C 로 종료 가능"
-puts "[스케줄] 8시 출석(질문), 2시 통금, 6시 통금해제"
+puts "[스케줄러] 매 1분마다 자동툿 시트 확인 중..."
 scheduler.join
