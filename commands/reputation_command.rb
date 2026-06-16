@@ -47,9 +47,7 @@ class ReputationCommand
     rows = @sheet_manager.read('기숙사', 'A:B')
     rows.each_with_index do |row, idx|
       next if idx.zero? || row.nil? || row[0].nil?
-      if row[0].to_s.strip == house_name
-        return (row[1] || 0).to_i
-      end
+      return (row[1] || 0).to_i if row[0].to_s.strip == house_name
     end
     0
   end

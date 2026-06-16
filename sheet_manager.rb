@@ -11,23 +11,11 @@ class SheetManager
   PROFESSOR_SHEET = '교수'.freeze
   AUTO_TOOT_SHEET = '자동툿'.freeze
 
-  # 사용자 시트 컬럼
-  # A=ID / B=이름 / C=크레딧 / D=아이템 / E=메모
-  # F=마지막베팅일 / G=오늘베팅횟수 / H=마지막타로일
-  # I=누적툿수 / J=정산기준툿수 / K=스탯포인트잔여
-  # L=출석날짜 / M=과제날짜
-
-  # 자동툿 시트 컬럼
-  # A=ON/OFF(체크박스) / B=시간(HH:MM) / C=내용
-
   def initialize(service, sheet_id)
     @service  = service
     @sheet_id = sheet_id
   end
 
-  # ──────────────────────────────────────────────
-  # 기본 I/O
-  # ──────────────────────────────────────────────
   def read(sheet, range = 'A:Z')
     @service.get_spreadsheet_values(@sheet_id, "#{sheet}!#{range}").values || []
   rescue => e
@@ -57,7 +45,6 @@ class SheetManager
     false
   end
 
-  # 기존 코드 호환용
   def read_values(range)
     @service.get_spreadsheet_values(@sheet_id, range).values || []
   rescue
@@ -75,30 +62,26 @@ class SheetManager
     false
   end
 
-  # ──────────────────────────────────────────────
-  # 사용자
-  # ──────────────────────────────────────────────
   def find_user(acct)
     acct = acct.to_s.gsub('@', '').strip
     rows = read(USERS_SHEET, 'A:M')
     rows[1..].each_with_index do |row, i|
       next unless row[0]&.gsub('@', '')&.strip == acct
       return {
-        row_num:          i + 2,
-        id:               row[0].to_s.strip,
-        name:             row[1].to_s.strip,
-        credits:          (row[2] || 0).to_i,
-        items:            row[3].to_s,
-        memo:             row[4].to_s,
-        last_bet_date:    row[5].to_s,
-        today_bet_count:  (row[6] || 0).to_i,
-        last_tarot_date:  row[7].to_s,
-        toot_count:       (row[8] || 0).to_i,
-        toot_baseline:    (row[9] || 0).to_i,
-        stat_points:      (row[10] || 0).to_i,
-        attendance_date:  row[11].to_s.strip,  # L열
-        homework_date:    row[12].to_s.strip,  # M열
-        house:            find_user_house(acct)
+        row_num:         i + 2,
+        id:              row[0].to_s.strip,
+        name:            row[1].to_s.strip,
+        credits:         (row[2] || 0).to_i,
+        items:           row[3].to_s,
+        house:           row[4].to_s.strip,
+        last_bet_date:   row[5].to_s,
+        today_bet_count: (row[6] || 0).to_i,
+        last_tarot_date: row[7].to_s,
+        toot_count:      (row[8] || 0).to_i,
+        toot_baseline:   (row[9] || 0).to_i,
+        stat_points:     (row[10] || 0).to_i,
+        attendance_date: row[11].to_s.strip,
+        homework_date:   row[12].to_s.strip
       }
     end
     nil
@@ -109,11 +92,10 @@ class SheetManager
 
   def update_user(acct, attrs)
     acct = acct.to_s.gsub('@', '').strip
-    rows = read(USERS_SHEET, 'A:M')
     col_map = {
       credits:         'C',
       items:           'D',
-      memo:            'E',
+      house:           'E',
       last_bet_date:   'F',
       today_bet_count: 'G',
       last_tarot_date: 'H',
@@ -123,6 +105,7 @@ class SheetManager
       attendance_date: 'L',
       homework_date:   'M'
     }
+    rows = read(USERS_SHEET, 'A:M')
     rows[1..].each_with_index do |row, i|
       next unless row[0]&.gsub('@', '')&.strip == acct
       row_num = i + 2
@@ -136,24 +119,21 @@ class SheetManager
     false
   end
 
-  # ──────────────────────────────────────────────
-  # 스탯
-  # ──────────────────────────────────────────────
   def find_stats(acct)
     acct = acct.to_s.gsub('@', '').strip
     rows = read(STATS_SHEET, 'A:H')
     rows[1..].each_with_index do |row, i|
       next unless row[0]&.gsub('@', '')&.strip == acct
       return {
-        row_num:    i + 2,
-        id:         row[0].to_s.strip,
-        name:       row[1].to_s.strip,
-        health:     (row[2] || 50).to_i,
-        magic:      (row[3] || 10).to_i,
-        endurance:  (row[4] || 10).to_i,
-        speed:      (row[5] || 0).to_i,
-        skill:      (row[6] || 0).to_i,
-        luck:       (row[7] || 5).to_i
+        row_num:   i + 2,
+        id:        row[0].to_s.strip,
+        name:      row[1].to_s.strip,
+        health:    (row[2] || 50).to_i,
+        magic:     (row[3] || 10).to_i,
+        endurance: (row[4] || 10).to_i,
+        speed:     (row[5] || 0).to_i,
+        skill:     (row[6] || 0).to_i,
+        luck:      (row[7] || 5).to_i
       }
     end
     nil
@@ -176,11 +156,8 @@ class SheetManager
     false
   end
 
-  # ──────────────────────────────────────────────
-  # 아이템
-  # ──────────────────────────────────────────────
   def find_item(item_name)
-    rows = read(ITEMS_SHEET, 'A:E')
+    rows = read(ITEMS_SHEET, 'A:F')
     rows[1..].each do |row|
       next unless row[0]&.strip == item_name.to_s.strip
       return {
@@ -188,28 +165,11 @@ class SheetManager
         description: row[1],
         price:       row[2].to_i,
         sellable:    row[3].to_s.strip.upcase == 'TRUE' || row[3] == true,
-        usable:      row[4].to_s.strip.upcase == 'TRUE' || row[4] == true
+        usable:      row[4].to_s.strip.upcase == 'TRUE' || row[4] == true,
+        use_message: row[5].to_s.strip
       }
     end
     nil
-  end
-
-  # ──────────────────────────────────────────────
-  # 기숙사
-  # ──────────────────────────────────────────────
-  def find_user_house(acct)
-    acct = acct.to_s.gsub('@', '').strip
-    rows = read(STATS_SHEET, 'A:Z')
-    header = rows[0] || []
-    house_col = header.index { |h| h.to_s.strip == '기숙사' }
-    return '' unless house_col
-    rows[1..].each do |row|
-      next unless row[0]&.gsub('@', '')&.strip == acct
-      return row[house_col].to_s.strip
-    end
-    ''
-  rescue
-    ''
   end
 
   def get_house_credits(house_name)
@@ -232,9 +192,6 @@ class SheetManager
     false
   end
 
-  # ──────────────────────────────────────────────
-  # 교수 시트 ON/OFF
-  # ──────────────────────────────────────────────
   def auto_push_enabled?(key:)
     rows = read(PROFESSOR_SHEET, 'A:Z')
     return false if rows.empty?
@@ -249,17 +206,13 @@ class SheetManager
     false
   end
 
-  # ──────────────────────────────────────────────
-  # 자동툿 시트
-  # A=ON/OFF(체크박스) / B=시간(HH:MM) / C=내용
-  # ──────────────────────────────────────────────
   def load_auto_toots
     rows = read(AUTO_TOOT_SHEET, 'A:C')
     result = []
     rows[1..].each do |row|
       next if row.nil? || row[2].nil? || row[2].to_s.strip.empty?
       enabled = row[0] == true || row[0].to_s.strip.upcase == 'TRUE'
-      time    = row[1].to_s.strip  # "08:00" 형태
+      time    = row[1].to_s.strip
       content = row[2].to_s.strip
       next unless enabled && !time.empty?
       result << { time: time, content: content }
@@ -268,30 +221,6 @@ class SheetManager
   rescue => e
     puts "[load_auto_toots 오류] #{e.message}"
     []
-  end
-
-  # ──────────────────────────────────────────────
-  # 툿 카운트 정산
-  # ──────────────────────────────────────────────
-  def settle_toot_credits(acct, current_toot_count)
-    user = find_user(acct)
-    return unless user
-    baseline = user[:toot_baseline]
-    diff     = current_toot_count - baseline
-    return if diff < 100
-    units       = diff / 100
-    earned      = units * 15
-    new_baseline = baseline + (units * 100)
-    update_user(acct, {
-      credits:      user[:credits] + earned,
-      toot_count:   current_toot_count,
-      toot_baseline: new_baseline
-    })
-    { earned: earned, units: units }
-  end
-
-  def update_toot_count(acct, count)
-    update_user(acct, { toot_count: count })
   end
 
   def all_users
@@ -308,7 +237,7 @@ class SheetManager
         toot_baseline:   (row[9] || 0).to_i,
         attendance_date: row[11].to_s.strip,
         homework_date:   row[12].to_s.strip,
-        house:           find_user_house(row[0].to_s.strip)
+        house:           row[13].to_s.strip
       }
     end
     result

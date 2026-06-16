@@ -3,7 +3,8 @@
 # encoding: UTF-8
 
 require 'mastodon'
-require 'dotenv/load'
+require 'dotenv'
+Dotenv.load('/root/TH3V151T0R5_P/.env')
 require 'google/apis/sheets_v4'
 require 'googleauth'
 

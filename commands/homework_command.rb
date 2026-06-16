@@ -23,22 +23,16 @@ class HomeworkCommand
 
     today = Date.today.to_s
 
-    last_homework = user[:homework_date].to_s.strip
-    if last_homework == today
-      return professor_reply("오늘은 이미 과제를 제출했어요. 하루 한 번만 가능합니다.")
+    if user[:homework_date].to_s.strip == today
+      return professor_reply("@#{@sender} 오늘은 이미 과제를 제출했어요. 하루 한 번만 가능합니다.")
     end
 
-    # 개인 크레딧 +5 (C열)
     new_credits = (user[:credits] || 0) + 5
     update_cell(@sender, 'C', new_credits)
-
-    # 과제날짜 업데이트 (M열)
     update_cell(@sender, 'M', today)
-
-    # 기숙사 크레딧 풀 +3
     add_house_credits(house, 3)
 
-    professor_reply("훌륭해요, #{user[:name]} 학생.\n과제를 성실히 마쳤군요.\n(보상: 크레딧 +5, #{house} 기숙사 크레딧 +3)")
+    professor_reply("@#{@sender} 훌륭해요, #{user[:name]} 학생.\n과제를 성실히 마쳤군요.\n(보상: 크레딧 +5, #{house} 기숙사 크레딧 +3)")
 
   rescue => e
     puts "[에러] HomeworkCommand: #{e.message}"
@@ -52,7 +46,7 @@ class HomeworkCommand
   end
 
   def update_cell(user_id, col, value)
-    rows = @sheet_manager.read('사용자', 'A:M')
+    rows = @sheet_manager.read('사용자', 'A:N')
     rows.each_with_index do |row, idx|
       next if idx.zero? || row.nil? || row[0].nil?
       if row[0].to_s.gsub('@', '').strip == user_id
