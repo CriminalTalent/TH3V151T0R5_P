@@ -39,7 +39,7 @@ module ProfessorParser
 
     else
       responder.reply(
-        "@#{sender_full} 사용 가능한 명령: [입학/이름], [출석], [과제], [명성확인]",
+        "@#{sender_full} 사용 가능한 명령: [입학/이름], [출석], [과제], [명성확인]\n지금은 바쁘니 10분 후에 오게.",
         status_id
       )
     end
@@ -50,7 +50,7 @@ module ProfessorParser
       status_id   ||= digv(mention, 'status', 'id')
       sender_full ||= extract_acct(digv(mention, 'account')) rescue 'unknown'
       Responder.new(reply_cb).reply(
-        "@#{sender_full} 처리 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
+        "@#{sender_full} 나중에 다시 오게.",
         status_id
       ) if reply_cb && status_id
     rescue
