@@ -12,12 +12,12 @@ class ReputationCommand
   def execute
     user = @sheet_manager.find_user(@sender)
     unless user
-      return professor_reply("아직 학적부에 없는 학생이군요. [입학/이름]으로 등록을 마쳐주세요.")
+      return professor_reply("아직 학적부에 없는 학생이군. [입학/이름]을 적어. 두 번 말하게 하지 말게.")
     end
 
     house = user[:house]
     unless house && !house.empty?
-      return professor_reply("아직 기숙사가 배정되지 않았네요. 먼저 기숙사 배정을 받으세요.")
+      return professor_reply("기숙사 점수가 알고 싶다면 내가 아니라 연회장의 모래시계를 찾아가라.")
     end
 
     house_credits = get_house_credits(house)
@@ -34,7 +34,7 @@ class ReputationCommand
 
   rescue => e
     puts "[에러] ReputationCommand: #{e.message}"
-    professor_reply("명성 확인 중 오류가 생겼어요. 잠시 후 다시 시도해보세요.")
+    professor_reply("나중에 다시 오게.")
   end
 
   private
