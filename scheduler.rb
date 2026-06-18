@@ -11,9 +11,6 @@ require 'googleauth'
 require_relative 'mastodon_client'
 require_relative 'sheet_manager'
 
-# ──────────────────────────────────────────────
-# 초기화
-# ──────────────────────────────────────────────
 BASE_URL  = ENV['MASTODON_BASE_URL']
 TOKEN     = ENV['MASTODON_TOKEN']
 SHEET_ID  = ENV['GOOGLE_SHEET_ID']
@@ -31,21 +28,17 @@ mastodon      = MastodonClient.new(base_url: BASE_URL, token: TOKEN)
 
 puts "[스케줄러] 시작 #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
 
-# ──────────────────────────────────────────────
-# 이미 발송한 시간 기록 (당일 중복 방지)
-# ──────────────────────────────────────────────
 sent_today = {}
 last_reset_date = Time.now.strftime('%Y-%m-%d')
 
 scheduler = Rufus::Scheduler.new
 
-# 매 1분마다 시트 확인 후 해당 시간 툿 발송
 scheduler.every '1m' do
   now  = Time.now
   date = now.strftime('%Y-%m-%d')
-  hhmm = now.strftime('%H:%M')
+  hhmm       = now.strftime('%H:%M')
+  hhmm_short = now.strftime('%-H:%M')
 
-  # 자정 지나면 발송 기록 초기화
   if date != last_reset_date
     sent_today.clear
     last_reset_date = date
@@ -55,7 +48,7 @@ scheduler.every '1m' do
   begin
     toots = sheet_manager.load_auto_toots
     toots.each do |toot|
-      next unless toot[:time] == hhmm
+      next unless toot[:time] == hhmm || toot[:time] == hhmm_short
       next if sent_today["#{date}_#{hhmm}_#{toot[:content][0..10]}"]
 
       mastodon.post_status(toot[:content], visibility: 'public')
