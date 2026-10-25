@@ -13,22 +13,22 @@ class AttendanceCommand
   def execute
     user = @sheet_manager.find_user(@sender)
     unless user
-      return professor_reply("아직 학적부에 없는 학생이군요. [입학/이름]으로 등록을 마쳐주세요.")
+      return professor_reply("아직 학적부에 없는 학생이군. [입학/이름]을 적어. 두 번 말하게 하지 말게.")
     end
 
     house = user[:house]
     unless house && !house.empty?
-      return professor_reply("아직 기숙사가 배정되지 않았네요. 먼저 기숙사 배정을 받으세요.")
+      return professor_reply("본인 기숙사도 모르다니... 제정신인가?")
     end
 
     today = Date.today.to_s
 
     if user[:attendance_date].to_s.strip == today
-      return professor_reply("@#{@sender} 오늘은 이미 출석을 완료했어요. 성실하군요, 훌륭합니다.")
+      return professor_reply("@#{@sender} 조금 전에 출석한 건 자네가 아니라 머저리였던 모양이군.")
     end
 
     if Time.now.hour >= 22
-      return professor_reply("@#{@sender} 출석 마감 시간(22:00)이 지나버렸군요. 내일은 조금 더 일찍 오도록 해요.")
+      return professor_reply("@#{@sender} 트롤도 이 시간(22:00)엔 자야 한다는 걸 안다네.")
     end
 
     new_credits = (user[:credits] || 0) + 2
@@ -36,11 +36,11 @@ class AttendanceCommand
     update_cell(@sender, 'L', today)
     add_house_credits(house, 1)
 
-    professor_reply("@#{@sender} 좋아요, #{user[:name]} 학생. 오늘도 성실히 출석했군요.\n(보상: 크레딧 +2, #{house} 기숙사 크레딧 +1)")
+    professor_reply("@#{@sender} #{user[:name]} ...오늘도 지겨운 얼굴이군.\n(보상: 크레딧 +2, #{house} 기숙사 크레딧 +1)")
 
   rescue => e
     puts "[에러] AttendanceCommand: #{e.message}"
-    professor_reply("잠시 오류가 생긴 것 같아요. 잠시 후 다시 시도해보세요.")
+    professor_reply("나중에 다시 오게.")
   end
 
   private

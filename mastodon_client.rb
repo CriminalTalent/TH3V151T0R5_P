@@ -6,6 +6,8 @@ require 'uri'
 require 'time'
 
 class MastodonClient
+  MAX_CHARS = 1000
+
   def initialize(base_url:, token:)
     @base_url = base_url.to_s.sub(%r{/\z}, '')
     @token    = token.to_s
@@ -60,18 +62,29 @@ class MastodonClient
   def post_status(text, reply_to_id: nil, visibility: "public", media_ids: [])
     return if Time.now < @post_block_until
 
-    form = { status: safe_utf8(text), visibility: visibility }
-    form[:in_reply_to_id] = reply_to_id if reply_to_id
-    Array(media_ids).each_with_index { |id, i| form["media_ids[#{i}]"] = id }
+    chunks = split_text(safe_utf8(text))
+    current_reply_id = reply_to_id
+    last_res = nil
 
-    res, _ = request(method: :post, path: "/api/v1/statuses", form: form)
+    chunks.each do |chunk|
+      form = { status: chunk, visibility: visibility }
+      form[:in_reply_to_id] = current_reply_id if current_reply_id
+      Array(media_ids).each_with_index { |id, i| form["media_ids[#{i}]"] = id }
 
-    if res&.code.to_s == '429'
-      @post_block_until = Time.now + 600
-      puts "[POST] rate limit → #{@post_block_until} 까지 중단"
+      res, body = request(method: :post, path: "/api/v1/statuses", form: form)
+
+      if res&.code.to_s == '429'
+        @post_block_until = Time.now + 600
+        puts "[POST] rate limit → #{@post_block_until} 까지 중단"
+        break
+      end
+
+      current_reply_id = body['id'] if body.is_a?(Hash) && body['id']
+      last_res = res
+      sleep 1 if chunks.size > 1
     end
 
-    res
+    last_res
   end
 
   def reply(text, in_reply_to_id, visibility: "unlisted")
@@ -80,5 +93,24 @@ class MastodonClient
 
   def broadcast(text, visibility: "public")
     post_status(text, visibility: visibility)
+  end
+
+  private
+
+  def split_text(text)
+    return [text] if text.length <= MAX_CHARS
+
+    chunks = []
+    remaining = text.dup
+
+    while remaining.length > MAX_CHARS
+      slice = remaining[0, MAX_CHARS]
+      cut = slice.rindex("\n") || MAX_CHARS
+      chunks << remaining[0, cut].rstrip
+      remaining = remaining[cut..].lstrip
+    end
+
+    chunks << remaining unless remaining.empty?
+    chunks
   end
 end

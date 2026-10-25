@@ -17,7 +17,20 @@ class SheetManager
   end
 
   def read(sheet, range = 'A:Z')
-    @service.get_spreadsheet_values(@sheet_id, "#{sheet}!#{range}").values || []
+    attempt = 0
+    begin
+      attempt += 1
+      @service.get_spreadsheet_values(@sheet_id, "#{sheet}!#{range}").values || []
+    rescue Google::Apis::RateLimitError, Google::Apis::ServerError, Google::Apis::TransmissionError => e
+      if attempt <= 3
+        wait = 1.5 * attempt
+        puts "[시트 재시도] 읽기 #{sheet}!#{range}: #{e.class} - #{wait}초 후 재시도 (#{attempt}/3)"
+        sleep(wait)
+        retry
+      end
+      puts "[시트 읽기 오류] #{e.message}"
+      []
+    end
   rescue => e
     puts "[시트 읽기 오류] #{e.message}"
     []
@@ -207,15 +220,16 @@ class SheetManager
   end
 
   def load_auto_toots
-    rows = read(AUTO_TOOT_SHEET, 'A:C')
+    rows = read(AUTO_TOOT_SHEET, 'A:D') || []
     result = []
-    rows[1..].each do |row|
+    (rows[1..] || []).each do |row|
       next if row.nil? || row[2].nil? || row[2].to_s.strip.empty?
       enabled = row[0] == true || row[0].to_s.strip.upcase == 'TRUE'
       time    = row[1].to_s.strip
       content = row[2].to_s.strip
+      date    = row[3].to_s.strip
       next unless enabled && !time.empty?
-      result << { time: time, content: content }
+      result << { time: time, content: content, date: date }
     end
     result
   rescue => e

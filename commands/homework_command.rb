@@ -13,18 +13,18 @@ class HomeworkCommand
   def execute
     user = @sheet_manager.find_user(@sender)
     unless user
-      return professor_reply("아직 학적부에 이름이 없군요. [입학/이름]으로 먼저 등록해주세요.")
+      return professor_reply("아직 학적부에 이름이 없군. [입학/이름]으로 먼저 등록해.")
     end
 
     house = user[:house]
     unless house && !house.empty?
-      return professor_reply("아직 기숙사가 배정되지 않았네요. 먼저 기숙사 배정을 받으세요.")
+      return professor_reply("본인 기숙사도 모르다니... 제정신인가?")
     end
 
     today = Date.today.to_s
 
     if user[:homework_date].to_s.strip == today
-      return professor_reply("@#{@sender} 오늘은 이미 과제를 제출했어요. 하루 한 번만 가능합니다.")
+      return professor_reply("@#{@sender} 그럼 아까 제출한 과제는 태워도 되겠지?")
     end
 
     new_credits = (user[:credits] || 0) + 5
@@ -32,11 +32,11 @@ class HomeworkCommand
     update_cell(@sender, 'M', today)
     add_house_credits(house, 3)
 
-    professor_reply("@#{@sender} 훌륭해요, #{user[:name]} 학생.\n과제를 성실히 마쳤군요.\n(보상: 크레딧 +5, #{house} 기숙사 크레딧 +3)")
+    professor_reply("@#{@sender} #{user[:name]}.\n이것도 과제라고 한 건가?\n(보상: 크레딧 +5, #{house} 기숙사 크레딧 +3)")
 
   rescue => e
     puts "[에러] HomeworkCommand: #{e.message}"
-    professor_reply("과제 제출 처리 중 문제가 생긴 것 같아요. 잠시 후 다시 시도해보세요.")
+    professor_reply("누가 과제를 이따위로 제출하라고 했지? 다시 해 오게.")
   end
 
   private
